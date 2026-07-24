@@ -39,4 +39,22 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
+
+
+    //day 2 backend
+    // Safety net: without this, any exception that isn't one of the two
+    // above (e.g. a bug, a DB constraint violation) escapes as Spring
+    // Boot's default whitelabel error page/500 body, which can leak internal
+    // details like class names and stack traces to API clients.
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> handleUnexpectedError(Exception ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+        // I didn't use ex.getMessage() here because it may expose internal
+        // application or database details. Return a generic message instead.
+        body.put("message", "An unexpected error occurred");
+
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body);
+    }
 }
