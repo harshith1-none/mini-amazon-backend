@@ -1,11 +1,13 @@
 package com.harshith.mini_amazon_backend.controller;
 
 
+import ch.qos.logback.core.sift.AppenderFactoryUsingSiftModel;
 import com.harshith.mini_amazon_backend.dto.ProductRequestDto;
 import com.harshith.mini_amazon_backend.dto.ProductResponseDto;
 import com.harshith.mini_amazon_backend.entity.Product;
 import com.harshith.mini_amazon_backend.service.ProductService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,10 +24,22 @@ public class ProductController {
         this.productService = productService;
     }
 
+      //day 1
+//    @GetMapping()
+//    public ResponseEntity<List<ProductResponseDto>> getAllProducts() {
+//        return ResponseEntity.ok(productService.getAllProducts());
+//    }
 
+    //day3
+    // `sort` is an optional query param on the main listing endpoint
+    // (GET /api/products?sort=cost,asc) instead of a separate /sort/
+    // endpoint. When omitted, products come back in default (insertion) order.
+    // Note: use the ENTITY field name (e.g. "cost"), not the frontend's
+    // display name ("price") — see ProductService.SORTABLE_FIELDS.
     @GetMapping()
-    public ResponseEntity<List<ProductResponseDto>> getAllProducts() {
-        return ResponseEntity.ok(productService.getAllProducts());
+    public ResponseEntity<List<ProductResponseDto>> getAllProducts(
+            @RequestParam(required = false) String sort) {
+        return ResponseEntity.ok(productService.getAllProducts(sort));
     }
 
 
@@ -64,4 +78,34 @@ public class ProductController {
 
          return ResponseEntity.noContent().build();
     }
+
+
+    //day 3 backend
+//    @GetMapping("/search")
+//    public ResponseEntity<List<ProductResponseDto>> searchProducts(@RequestParam String keyword) {
+//        return ResponseEntity.ok(productService.searchProducts(keyword));
+//    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<ProductResponseDto>> searchProducts(
+            @RequestParam @NotBlank(message = "Search keyword must not be empty") String keyword) {
+        return ResponseEntity.ok(productService.searchProducts(keyword));
+    }
+
+
+//    @GetMapping("/category/{category}")
+//    public ResponseEntity<List<ProductResponseDto>> categoryFilter(@PathVariable String category) {
+//        return ResponseEntity.ok(productService.categoryFilter(category));
+//    }
+        @GetMapping("/category/{category}")
+        public ResponseEntity<List<ProductResponseDto>> categoryFilter(
+                @PathVariable @NotBlank(message = "Category must not be empty") String category) {
+            return ResponseEntity.ok(productService.categoryFilter(category));
+        }
+
+
+
+
+//    @GetMapping("/sort/") public ResponseEntity<List<ProductResponseDto>> sort(@Valid @RequestParam String words) { return ResponseEntity.ok(productService.sort(words)); }
+
 }

@@ -3,14 +3,19 @@ package com.harshith.mini_amazon_backend.service;
 import com.harshith.mini_amazon_backend.dto.ProductRequestDto;
 import com.harshith.mini_amazon_backend.dto.ProductResponseDto;
 import com.harshith.mini_amazon_backend.entity.Product;
+import com.harshith.mini_amazon_backend.exception.CategoryNotFoundException;
 import com.harshith.mini_amazon_backend.exception.ProductNotFoundException;
 import com.harshith.mini_amazon_backend.repository.ProductRepository;
 
 import jakarta.validation.Valid;
+import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class ProductService {
@@ -21,12 +26,26 @@ public class ProductService {
         this.productRepository = productRepository;
     }
 
-    public List<ProductResponseDto> getAllProducts() {
-        return productRepository.findAll()
-                .stream()
+    //day1
+//    public List<ProductResponseDto> getAllProducts() {
+//        return productRepository.findAll()
+//                .stream()
+//                .map(this::toDto)
+//                .toList();
+//    }
+
+    //day 3 (get all products & sorting in 1 meathod for production quality)
+    public List<ProductResponseDto> getAllProducts(String sort) {
+        List<Product> products = (sort == null || sort.isBlank())
+                ? productRepository.findAll()
+                : productRepository.findAll(parseSort(sort));
+
+        return products.stream()
                 .map(this::toDto)
                 .toList();
     }
+
+
 
     public ProductResponseDto getProductById(Long id) {
         Product product = productRepository.findById(id)
@@ -110,4 +129,97 @@ public class ProductService {
         product.setDiscountPercent(request.getDiscountPercent());
     }
 
+
+    //day 2 backend
+//    public List<ProductResponseDto> searchProducts(@Valid String keyword) {
+//        List<Product> products = productRepository
+//                .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCaseOrCategoryContainingIgnoreCase(
+//                        keyword,
+//                        keyword,
+//                        keyword
+//                );
+//        return products
+//                .stream()
+//                .map(this::toDto)
+//                .toList();
+//    }
+//
+//    public List<ProductResponseDto> categoryFilter(String category) {
+//        List<Product> products = productRepository
+//                .findByCategoryIgnoreCase(category);
+//        return products .stream() .map(this :: toDto)
+//                .toList();
+//    }
+//
+//    public List<ProductResponseDto> sort(String words) {
+//
+//        String[] parts = words.split(",");
+//        String field = parts[0];
+//        String direction = parts[1];
+//
+//        Sort sort = Sort.by(
+//                Sort.Direction.fromString(direction),
+//                field
+//        );
+//
+//        List<Product> products = productRepository.findAll(sort);
+//
+//        return products.stream()
+//                .map(this::toDto)
+//                .toList();
+//    }
+    public List<ProductResponseDto> searchProducts(String keyword) {
+        List<Product> products = productRepository
+                .findByNameContainingIgnoreCaseOrBrandContainingIgnoreCaseOrCategoryContainingIgnoreCase(
+                        keyword,
+                        keyword,
+                        keyword
+                );
+        return products
+                .stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+    public List<ProductResponseDto> categoryFilter(String category) {
+        List<Product> products = productRepository.findByCategoryIgnoreCase(category);
+
+        if (products.isEmpty()) {
+            throw new CategoryNotFoundException(category);
+        }
+
+        return products.stream()
+                .map(this::toDto)
+                .toList();
+    }
+
+
+    private static final Set<String> SORTABLE_FIELDS = Set.of(
+            "name", "cost", "rating", "stock", "discountPercent"
+    );
+    private Sort parseSort(String sort) {
+        String[] parts = sort.split(",");
+        if (parts.length != 2) {
+            throw new IllegalArgumentException(
+                    "Invalid sort format '" + sort + "'. Expected 'field,direction', e.g. cost,asc");
+        }
+
+        String field = parts[0].trim();
+        String direction = parts[1].trim();
+
+        if (!SORTABLE_FIELDS.contains(field)) {
+            throw new IllegalArgumentException(
+                    "Cannot sort by '" + field + "'. Allowed fields: " + SORTABLE_FIELDS);
+        }
+
+        Sort.Direction sortDirection;
+        try {
+            sortDirection = Sort.Direction.fromString(direction);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalArgumentException(
+                    "Invalid sort direction '" + direction + "'. Use 'asc' or 'desc'.");
+        }
+
+        return Sort.by(sortDirection, field);
+    }
 }
