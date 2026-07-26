@@ -33,6 +33,17 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
+    // day 4 backend: cart line item not found for the given product id,
+    // e.g. PUT /api/cart/increase/{productId} for a product never added.
+    @ExceptionHandler(CartItemNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleCartItemNotFound(CartItemNotFoundException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new HashMap<>();
