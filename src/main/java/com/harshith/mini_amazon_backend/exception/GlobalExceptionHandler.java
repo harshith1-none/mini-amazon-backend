@@ -44,6 +44,36 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
+
+
+
+    //day 5
+    // New: 404 when the wishlist item being read/deleted doesn't exist for
+    // this user - mirrors handleCartItemNotFound above.
+    @ExceptionHandler(WishlistItemNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleWishlistItemNotFound(WishlistItemNotFoundException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    //day 5
+    // New: 409 Conflict when POST /api/wishlist targets a product already
+    // in the wishlist. 409 (not 400) is the correct status for "this request
+    // conflicts with the current state of the resource".
+    @ExceptionHandler(DuplicateWishlistItemException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicateWishlistItem(DuplicateWishlistItemException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new HashMap<>();
