@@ -34,9 +34,14 @@ public class Cart {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Temporary stand-in until JWT auth exists - see CartServiceImpl.DEFAULT_USER_ID.
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
+    // Day 7: was a raw `Long userId`. That's a foreign key VALUE, not a JPA
+    // relationship - Hibernate had no idea it pointed at User, there was no
+    // way to write cart.getUser(), and nothing stopped it from being set to
+    // an id that doesn't exist. @ManyToOne gives an actual mapped
+    // association, same as the `product` field just below it.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)

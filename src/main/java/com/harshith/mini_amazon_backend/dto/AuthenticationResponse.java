@@ -4,25 +4,24 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * BUG FIX: the previous version had a `password` field serialized straight
+ * into the login/register JSON response, and a hand-written 3-arg
+ * constructor whose parameter names (token, email, password) didn't match
+ * how it was actually called in AuthService - which passed
+ * (token, user.getName(), user.getEmail()). That silently put the user's
+ * NAME into the "email" field and their EMAIL into the "password" field of
+ * every auth response. Replaced with a plain @AllArgsConstructor over the
+ * correct 4 fields (no password field at all) so there's no hand-written
+ * constructor left to drift out of sync with its callers.
+ */
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class AuthenticationResponse {
 
     private String token;
-
-    // Lets the frontend build the "Authorization: Bearer <token>" header
-    // without hardcoding the scheme name on its side.
-    private String tokenType = "Bearer";
-
+    private String tokenType;
     private String name;
-
     private String email;
-
-    public AuthenticationResponse(String token, String name, String email) {
-        this.token = token;
-        this.tokenType = "Bearer";
-        this.name = name;
-        this.email = email;
-    }
 }

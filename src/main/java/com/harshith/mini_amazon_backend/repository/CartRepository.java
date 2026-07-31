@@ -1,6 +1,7 @@
 package com.harshith.mini_amazon_backend.repository;
 
 import com.harshith.mini_amazon_backend.entity.Cart;
+import com.harshith.mini_amazon_backend.entity.User;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
@@ -11,12 +12,14 @@ import java.util.Optional;
 @Repository
 public interface CartRepository extends JpaRepository<Cart, Long> {
 
-    List<Cart> findByUserId(Long userId);
+    // Day 7: was findByUserId(Long). Now that Cart.user is a real @ManyToOne
+    // relationship, Spring Data derives the query by navigating the
+    // association (still generates ... WHERE user_id = ? under the hood) -
+    // no @Query needed, and the method signature now matches what the
+    // entity actually looks like.
+    List<Cart> findByUser(User user);
 
-    // "ProductId" here resolves through the Cart -> Product relationship
-    // (product.id) automatically via Spring Data's nested-property query
-    // derivation - no @Query needed.
-    Optional<Cart> findByUserIdAndProductId(Long userId, Long productId);
+    Optional<Cart> findByUserAndProductId(User user, Long productId);
 
-    void deleteByUserId(Long userId);
+    void deleteByUser(User user);
 }

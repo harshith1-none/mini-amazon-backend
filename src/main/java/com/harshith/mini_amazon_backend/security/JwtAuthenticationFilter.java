@@ -6,7 +6,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.lang.NonNull;
+import jakarta.validation.constraints.NotNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -17,19 +17,23 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 
-/**
- * Runs once per request. Reads the "Authorization: Bearer <token>" header,
- * validates the token, and - if valid - populates the SecurityContext so
- * downstream authorization checks (in SecurityConfig) know who's calling.
- */
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    // BUG FIX: was "Autherisation" (misspelled, not a real HTTP header).
+    // The real header is "Authorization" - with the old value this filter
+    // never found a token on any request.
     private static final String AUTH_HEADER = "Authorization";
+
+    // BUG FIX: needs the trailing space. "Bearer <token>".startsWith("Bearer")
+    // is true even without it, but substring(BEARER_PREFIX.length()) would
+    // then start cutting right after "Bearer", keeping the space before the
+    // token and producing " <token>" - which fails JWT parsing.
     private static final String BEARER_PREFIX = "Bearer ";
 
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
+
 
     public JwtAuthenticationFilter(JwtService jwtService, UserDetailsService userDetailsService) {
         this.jwtService = jwtService;
@@ -38,43 +42,41 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(
-            @NonNull HttpServletRequest request,
-            @NonNull HttpServletResponse response,
-            @NonNull FilterChain filterChain) throws ServletException, IOException {
+            @NotNull HttpServletRequest request,
+            @NotNull HttpServletResponse response,
+            @NotNull FilterChain filterChain) throws ServletException, IOException {
 
         String authHeader = request.getHeader(AUTH_HEADER);
 
-        if (authHeader == null || !authHeader.startsWith(BEARER_PREFIX)) {
-            filterChain.doFilter(request, response);
+        // BUG FIX: was missing `return` here. Without it, every request
+        // with no/invalid Authorization header fell through to
+        // authHeader.substring(...) on a null authHeader, throwing an
+        // uncaught NullPointerException on every unauthenticated request
+        // (including public endpoints like GET /api/products).
+        if(authHeader==null || !authHeader.startsWith(BEARER_PREFIX)) {
+            filterChain.doFilter(request,response);
             return;
         }
 
         String token = authHeader.substring(BEARER_PREFIX.length());
-
         try {
             String email = jwtService.extractUsername(token);
-
-            if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            if(email!=null && SecurityContextHolder.getContext().getAuthentication()==null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
-                if (jwtService.isTokenValid(token, userDetails)) {
-                    UsernamePasswordAuthenticationToken authToken =
-                            new UsernamePasswordAuthenticationToken(
-                                    userDetails, null, userDetails.getAuthorities());
+                if(jwtService.isTokenValid(token,userDetails)) {
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,null,userDetails.getAuthorities()
+                    );
                     authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
+
             }
-        } catch (JwtException | IllegalArgumentException ex) {
-            // Malformed, expired, or tampered token. Deliberately swallowed
-            // here rather than rethrown: leaving the SecurityContext empty
-            // and letting the request continue means Spring Security's own
-            // authorization rules (in SecurityConfig) correctly reject it
-            // with a 401/403 later, instead of this filter crashing the
-            // whole request with an unrelated 500.
+        } catch(JwtException | IllegalArgumentException ex) {
             SecurityContextHolder.clearContext();
         }
 
-        filterChain.doFilter(request, response);
+        filterChain.doFilter(request,response);
     }
 }

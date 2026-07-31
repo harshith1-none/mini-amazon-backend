@@ -1,6 +1,5 @@
 package com.harshith.mini_amazon_backend.entity;
 
-import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
@@ -10,7 +9,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
-import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -34,25 +32,16 @@ public class Wishlist {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // BUG FIX: this was previously annotated with @JoinColumn, which is only
-    // valid on entity associations (@ManyToOne/@OneToOne/etc). userId is a
-    // plain Long, not a relationship, so it needs a normal @Column - the old
-    // code happened to work because Hibernate silently ignored the misapplied
-    // annotation, but it was incorrect and misleading to read.
-    @NotNull(message = "userId should not be empty")
-    @Column(name = "user_id", nullable = false)
-    private Long userId;
+    // Day 7: was a raw `Long userId` (previously even mis-annotated with
+    // @JoinColumn, which only applies to real associations). Replaced with
+    // an actual @ManyToOne relationship to User, same pattern as `product`
+    // below and as Cart.user - this is what "add a relationship between
+    // User and WishlistItem" means in JPA terms.
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "product_id", nullable = false)
     private Product product;
 }
-
-//Ask yourself:
-//
-//Is this field another entity object?
-//
-//Yes → Use a relationship annotation (@OneToOne, @OneToMany, @ManyToOne, or @ManyToMany) and, where applicable, @JoinColumn.
-//        No (it's a simple value like String, int, BigDecimal, LocalDate, etc.) → Use @Column (or omit it if you don't need any customization, since JPA maps basic fields by default).
-//
-//This rule will be correct for almost all JPA entity mappings.

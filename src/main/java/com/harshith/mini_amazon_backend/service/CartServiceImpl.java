@@ -3,10 +3,12 @@ package com.harshith.mini_amazon_backend.service;
 import com.harshith.mini_amazon_backend.dto.CartResponseDto;
 import com.harshith.mini_amazon_backend.entity.Cart;
 import com.harshith.mini_amazon_backend.entity.Product;
+import com.harshith.mini_amazon_backend.entity.User;
 import com.harshith.mini_amazon_backend.exception.CartItemNotFoundException;
 import com.harshith.mini_amazon_backend.exception.ProductNotFoundException;
 import com.harshith.mini_amazon_backend.repository.CartRepository;
 import com.harshith.mini_amazon_backend.repository.ProductRepository;
+import com.harshith.mini_amazon_backend.security.CurrentUserProvider;
 
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
@@ -17,19 +19,27 @@ import java.util.List;
 @Service
 public class CartServiceImpl implements CartService {
 
-    private static final Long DEFAULT_USER_ID = 1L;
-
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
+    private final CurrentUserProvider currentUserProvider;
 
-    public CartServiceImpl(CartRepository cartRepository, ProductRepository productRepository) {
+    public CartServiceImpl(CartRepository cartRepository,
+                           ProductRepository productRepository,
+                           CurrentUserProvider currentUserProvider) {
         this.cartRepository = cartRepository;
         this.productRepository = productRepository;
+        this.currentUserProvider = currentUserProvider;
     }
 
+    // Day 7: every method below was previously keyed on a hard-coded
+    // DEFAULT_USER_ID = 1L, meaning every request from every user read and
+    // wrote the exact same cart rows. That constant is gone - each method
+    // now resolves the actual logged-in user via CurrentUserProvider first,
+    // which is what makes each user's cart their own.
     @Override
     public List<CartResponseDto> getCart() {
-        return cartRepository.findByUserId(DEFAULT_USER_ID)
+        User currentUser = currentUserProvider.getCurrentUser();
+        return cartRepository.findByUser(currentUser)
                 .stream()
                 .map(this::toDto)
                 .toList();
@@ -41,15 +51,17 @@ public class CartServiceImpl implements CartService {
             throw new IllegalArgumentException("Quantity must be at least 1");
         }
 
+        User currentUser = currentUserProvider.getCurrentUser();
+
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException(productId));
 
-        Cart cartItem = cartRepository.findByUserIdAndProductId(DEFAULT_USER_ID, productId)
+        Cart cartItem = cartRepository.findByUserAndProductId(currentUser, productId)
                 .orElse(null);
 
         if (cartItem == null) {
             cartItem = new Cart();
-            cartItem.setUserId(DEFAULT_USER_ID);
+            cartItem.setUser(currentUser);
             cartItem.setProduct(product);
             cartItem.setQuantity(quantity);
         } else {
@@ -82,28 +94,22 @@ public class CartServiceImpl implements CartService {
         cartRepository.delete(cartItem);
     }
 
-        //    @Override
-        //    public void clearCart() {
-        //        cartRepository.deleteByUserId(DEFAULT_USER_ID);
-        //    }
-        // day 4 backend - BUG FIX
-        // cartRepository.deleteByUserId(...) is a derived delete query, not a
-        // built-in CRUD method - unlike cartRepository.delete(entity) (used in
-        // removeItem above), which Spring Data already wraps in a transaction
-        // internally, a custom deleteByX query needs its own explicit
-        // transaction boundary or it fails at runtime trying to access the
-        // persistence context. That's why only Clear Cart was throwing a 500 -
-        // Remove Item never hit this problem because it uses a different,
-        // already-transactional method.
-        @Override
-        @Transactional
-        public void clearCart() {
-            cartRepository.deleteByUserId(DEFAULT_USER_ID);
-        }
-
+    // day 4 backend - BUG FIX
+    // cartRepository.deleteByUser(...) is a derived delete query, not a
+    // built-in CRUD method - unlike cartRepository.delete(entity) (used in
+    // removeItem above), which Spring Data already wraps in a transaction
+    // internally, a custom deleteByX query needs its own explicit
+    // transaction boundary or it fails at runtime trying to access the
+    // persistence context.
+    @Override
+    @Transactional
+    public void clearCart() {
+        cartRepository.deleteByUser(currentUserProvider.getCurrentUser());
+    }
 
     private Cart getCartItemOrThrow(Long productId) {
-        return cartRepository.findByUserIdAndProductId(DEFAULT_USER_ID, productId)
+        User currentUser = currentUserProvider.getCurrentUser();
+        return cartRepository.findByUserAndProductId(currentUser, productId)
                 .orElseThrow(() -> new CartItemNotFoundException(productId));
     }
 
