@@ -35,8 +35,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
-    // day 4 backend: cart line item not found for the given product id,
-    // e.g. PUT /api/cart/increase/{productId} for a product never added.
     @ExceptionHandler(CartItemNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleCartItemNotFound(CartItemNotFoundException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -46,9 +44,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
-    //day 5
-    // New: 404 when the wishlist item being read/deleted doesn't exist for
-    // this user - mirrors handleCartItemNotFound above.
     @ExceptionHandler(WishlistItemNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleWishlistItemNotFound(WishlistItemNotFoundException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -58,10 +53,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
-    //day 5
-    // New: 409 Conflict when POST /api/wishlist targets a product already
-    // in the wishlist. 409 (not 400) is the correct status for "this request
-    // conflicts with the current state of the resource".
     @ExceptionHandler(DuplicateWishlistItemException.class)
     public ResponseEntity<Map<String, Object>> handleDuplicateWishlistItem(DuplicateWishlistItemException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -71,9 +62,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
-    // NEW (auth): 409 Conflict on POST /api/auth/register with an email
-    // that's already taken - same reasoning as DuplicateWishlistItemException
-    // above: this is a state conflict, not a malformed request.
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ResponseEntity<Map<String, Object>> handleEmailAlreadyExists(EmailAlreadyExistsException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -83,10 +71,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
-    // NEW (auth): wrong email or wrong password on POST /api/auth/login.
-    // Deliberately reports a generic "invalid email or password" instead of
-    // "email not found" vs "wrong password" - distinguishing those two lets
-    // an attacker enumerate which emails are registered.
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<Map<String, Object>> handleBadCredentials(BadCredentialsException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -96,9 +80,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
-    // NEW (auth): catch-all for any other Spring Security authentication
-    // failure (e.g. account disabled/locked in the future) so it returns a
-    // clean 401 instead of falling through to the generic 500 handler below.
     @ExceptionHandler(AuthenticationException.class)
     public ResponseEntity<Map<String, Object>> handleAuthenticationException(AuthenticationException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -106,6 +87,43 @@ public class GlobalExceptionHandler {
         body.put("status", HttpStatus.UNAUTHORIZED.value());
         body.put("message", "Authentication failed");
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+    }
+
+    // NEW (Day 8): POST /api/orders when the user's cart has no items.
+    // 400 - the client sent a well-formed request, but it's not valid to
+    // act on given the current state (nothing to order).
+    @ExceptionHandler(EmptyCartException.class)
+    public ResponseEntity<Map<String, Object>> handleEmptyCart(EmptyCartException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
+    }
+
+    // NEW (Day 8): 409 - the requested quantity conflicts with current
+    // inventory. Same reasoning as DuplicateWishlistItemException: this is
+    // a conflict with server-side state, not a malformed request.
+    @ExceptionHandler(InsufficientStockException.class)
+    public ResponseEntity<Map<String, Object>> handleInsufficientStock(InsufficientStockException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    // NEW (Day 8): GET /api/orders/{id} for an order that doesn't exist, or
+    // that exists but belongs to a different user - findByIdAndUser in
+    // OrderRepository makes those two cases indistinguishable to the
+    // caller on purpose, so no one can probe which order ids exist.
+    @ExceptionHandler(OrderNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleOrderNotFound(OrderNotFoundException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
