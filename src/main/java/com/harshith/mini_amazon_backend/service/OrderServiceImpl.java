@@ -41,13 +41,6 @@ public class OrderServiceImpl implements OrderService {
         this.currentUserProvider = currentUserProvider;
     }
 
-    // @Transactional here matters more than on most other methods in this
-    // project: this one touches three tables (product stock, order +
-    // order_item, cart) in sequence. Without a transaction boundary, a
-    // failure partway through (e.g. product #3 turns out to be out of
-    // stock) could leave product #1 and #2's stock already decremented
-    // with no order ever created to account for it - a silent inventory
-    // leak. Wrapping it all in one transaction means it's all-or-nothing.
     @Override
     @Transactional
     public OrderResponseDto placeOrder() {
@@ -97,19 +90,26 @@ public class OrderServiceImpl implements OrderService {
         return toDto(savedOrder);
     }
 
+    // UPDATED (Day 9): now calls findByUserWithItemsOrderByOrderDateDesc
+    // instead of findByUserOrderByOrderDateDesc. Same result set, but the
+    // repository query now JOIN FETCHes orderItems and product in one SQL
+    // round trip instead of lazy-loading them one order/item at a time
+    // while toDto() loops below (see OrderRepository for the full reasoning).
     @Override
     public List<OrderResponseDto> getOrders() {
         User currentUser = currentUserProvider.getCurrentUser();
-        return orderRepository.findByUserOrderByOrderDateDesc(currentUser)
+        return orderRepository.findByUserWithItemsOrderByOrderDateDesc(currentUser)
                 .stream()
                 .map(this::toDto)
                 .toList();
     }
 
+    // UPDATED (Day 9): same N+1 fix as getOrders(), applied to the
+    // single-order lookup via findByIdAndUserWithItems.
     @Override
     public OrderResponseDto getOrderById(Long orderId) {
         User currentUser = currentUserProvider.getCurrentUser();
-        Order order = orderRepository.findByIdAndUser(orderId, currentUser)
+        Order order = orderRepository.findByIdAndUserWithItems(orderId, currentUser)
                 .orElseThrow(() -> new OrderNotFoundException(orderId));
         return toDto(order);
     }

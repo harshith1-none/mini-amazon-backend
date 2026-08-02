@@ -16,7 +16,9 @@ import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.ToString;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -40,11 +42,17 @@ public class Order {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    // cascade = ALL: saving/deleting an Order saves/deletes its items too -
-    // an OrderItem has no meaning without its parent Order, so this should
-    // never be managed as a separate lifecycle.
-    // orphanRemoval = true: if an item is ever removed from this list, it's
-    // deleted from the DB, not just unlinked.
+    // FIXED (Day 9 review): @ToString.Exclude / @EqualsAndHashCode.Exclude
+    // added. @Data generates toString()/equals()/hashCode() from every
+    // field by default. OrderItem holds a @ManyToOne back to this exact
+    // Order, so without these exclusions: Order.toString() prints
+    // orderItems -> each OrderItem.toString() prints its order ->
+    // Order.toString() again -> infinite recursion -> StackOverflowError.
+    // Same cycle for hashCode()/equals(). Excluding the collection here
+    // breaks the cycle at this end, which is enough - OrderItem can still
+    // safely print/compare its order reference.
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
     @OneToMany(mappedBy = "order", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<OrderItem> orderItems = new ArrayList<>();
 
