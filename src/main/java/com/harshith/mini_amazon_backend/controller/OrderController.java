@@ -1,14 +1,12 @@
 package com.harshith.mini_amazon_backend.controller;
 
 import com.harshith.mini_amazon_backend.dto.OrderResponseDto;
+import com.harshith.mini_amazon_backend.dto.OrderStatusUpdateRequestDto;
 import com.harshith.mini_amazon_backend.service.OrderService;
+import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -40,5 +38,21 @@ public class OrderController {
     @GetMapping("/{orderId}")
     public ResponseEntity<OrderResponseDto> getOrderById(@PathVariable Long orderId) {
         return ResponseEntity.ok(orderService.getOrderById(orderId));
+    }
+
+
+    //Day 10
+    // PATCH, not PUT - the client is changing one field (status) on the
+    // order, not replacing the whole resource. Admin-only: enforced in
+    // SecurityConfig (HttpMethod.PATCH, "/api/orders/*/status" ->
+    // hasRole("ADMIN")), not with an @PreAuthorize annotation here, to stay
+    // consistent with how every other authorization rule in this project is
+    // already declared centrally in SecurityConfig.
+    @PatchMapping("/{orderId}/status")
+    public ResponseEntity<OrderResponseDto> updateOrderStatus(
+            @PathVariable Long orderId,
+            @Valid @RequestBody OrderStatusUpdateRequestDto request) {
+        OrderResponseDto updatedOrder = orderService.updateOrderStatus(orderId, request.getStatus());
+        return ResponseEntity.ok(updatedOrder);
     }
 }

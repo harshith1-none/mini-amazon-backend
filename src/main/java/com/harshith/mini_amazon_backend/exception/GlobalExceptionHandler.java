@@ -126,6 +126,24 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
     }
 
+
+
+    // NEW (Day 10): PATCH /api/orders/{id}/status requesting a transition
+    // the order isn't allowed to make from its current state (e.g.
+    // DELIVERED -> PROCESSING). 409, same reasoning as
+    // InsufficientStockException - a well-formed request that conflicts
+    // with the resource's current state, not a malformed one.
+    @ExceptionHandler(InvalidOrderStatusTransitionException.class)
+    public ResponseEntity<Map<String, Object>> handleInvalidOrderStatusTransition(InvalidOrderStatusTransitionException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
         Map<String, String> fieldErrors = new HashMap<>();

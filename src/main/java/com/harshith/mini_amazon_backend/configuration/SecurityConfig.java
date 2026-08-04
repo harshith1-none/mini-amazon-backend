@@ -50,26 +50,28 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-                // Stateless JWT API: no browser form/session is involved, so
-                // CSRF protection (which defends against session-cookie-based
-                // attacks) doesn't apply here and would only get in the way.
+
                 .csrf(csrf -> csrf.disable())
 
-                // Reuses the CORS rules already declared in WebConfig
-                // (addCorsMappings) - Spring Security picks those up
-                // automatically via the MVC HandlerMappingIntrospector, so
-                // there's no need to duplicate the allowed-origins list here.
                 .cors(Customizer.withDefaults())
 
-                // No HTTP sessions are created or read - every request must
-                // carry its own valid JWT. This is what makes the API
-                // horizontally scalable (no shared session store needed).
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
+
+                        // NEW (Day 10): admin-only order status changes.
+                        // Must be declared before .anyRequest().authenticated()
+                        // - Spring Security evaluates these rules in order
+                        // and stops at the first match, so a more specific
+                        // rule always has to come before a more general one
+                        // that would otherwise shadow it.
+                        .requestMatchers(HttpMethod.PATCH, "/api/orders/*/status").hasRole("ADMIN")
+
+
+
                         .anyRequest().authenticated()
                 )
 

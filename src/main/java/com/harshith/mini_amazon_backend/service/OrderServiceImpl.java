@@ -10,6 +10,7 @@ import com.harshith.mini_amazon_backend.entity.Product;
 import com.harshith.mini_amazon_backend.entity.User;
 import com.harshith.mini_amazon_backend.exception.EmptyCartException;
 import com.harshith.mini_amazon_backend.exception.InsufficientStockException;
+import com.harshith.mini_amazon_backend.exception.InvalidOrderStatusTransitionException;
 import com.harshith.mini_amazon_backend.exception.OrderNotFoundException;
 import com.harshith.mini_amazon_backend.repository.CartRepository;
 import com.harshith.mini_amazon_backend.repository.OrderRepository;
@@ -20,11 +21,23 @@ import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 @Service
 public class OrderServiceImpl implements OrderService {
+
+    // NEW (Day 10): the order lifecycle as an explicit graph, not scattered
+    // if/else checks. DELIVERED and CANCELLED are terminal - they're simply
+    // absent as keys, so any transition attempted from them falls through to
+    // "not a valid transition" below. Static so it's built once per class,
+    // not once per instance.
+    private static final Map<OrderStatus, Set<OrderStatus>> VALID_TRANSITIONS = new EnumMap<>(OrderStatus.class);
+
+    static {
+        VALID_TRANSITIONS.put(OrderStatus.PLACED, EnumSet.of(OrderStatus.PROCESSING, OrderStatus.CANCELLED));
+        VALID_TRANSITIONS.put(OrderStatus.PROCESSING, EnumSet.of(OrderStatus.SHIPPED, OrderStatus.CANCELLED));
+        VALID_TRANSITIONS.put(OrderStatus.SHIPPED, EnumSet.of(OrderStatus.DELIVERED));
+    }
 
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
@@ -90,11 +103,6 @@ public class OrderServiceImpl implements OrderService {
         return toDto(savedOrder);
     }
 
-    // UPDATED (Day 9): now calls findByUserWithItemsOrderByOrderDateDesc
-    // instead of findByUserOrderByOrderDateDesc. Same result set, but the
-    // repository query now JOIN FETCHes orderItems and product in one SQL
-    // round trip instead of lazy-loading them one order/item at a time
-    // while toDto() loops below (see OrderRepository for the full reasoning).
     @Override
     public List<OrderResponseDto> getOrders() {
         User currentUser = currentUserProvider.getCurrentUser();
@@ -104,8 +112,39 @@ public class OrderServiceImpl implements OrderService {
                 .toList();
     }
 
-    // UPDATED (Day 9): same N+1 fix as getOrders(), applied to the
-    // single-order lookup via findByIdAndUserWithItems.
+    // NEW (Day 10): admin-only endpoint backs this. Deliberately looks the
+    // order up with findByIdWithItems (no user filter) instead of
+    // findByIdAndUserWithItems - an admin must be able to update any
+    // customer's order, not just their own.
+    @Override
+    @Transactional
+    public OrderResponseDto updateOrderStatus(Long orderId, OrderStatus newStatus) {
+        Order order = orderRepository.findByIdWithItems(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        OrderStatus currentStatus = order.getStatus();
+
+        if (currentStatus == newStatus) {
+            // No-op update (e.g. re-submitting the same status) is treated
+            // the same as any other disallowed transition - PLACED does not
+            // transition to PLACED, so this correctly falls out of
+            // VALID_TRANSITIONS without a separate special case.
+            throw new InvalidOrderStatusTransitionException(currentStatus, newStatus);
+        }
+
+        Set<OrderStatus> allowedNextStatuses = VALID_TRANSITIONS.get(currentStatus);
+        if (allowedNextStatuses == null || !allowedNextStatuses.contains(newStatus)) {
+            throw new InvalidOrderStatusTransitionException(currentStatus, newStatus);
+        }
+
+        order.setStatus(newStatus);
+        Order savedOrder = orderRepository.save(order);
+        return toDto(savedOrder);
+    }
+
+
+
+
     @Override
     public OrderResponseDto getOrderById(Long orderId) {
         User currentUser = currentUserProvider.getCurrentUser();

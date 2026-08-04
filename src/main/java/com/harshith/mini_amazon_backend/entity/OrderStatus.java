@@ -1,11 +1,15 @@
 package com.harshith.mini_amazon_backend.entity;
 
 /**
- * Minimal for Part 1 - order creation only. Future days (Part 2) will add
- * transitions like CONFIRMED, SHIPPED, DELIVERED, CANCELLED and the
- * endpoints to move between them. Not adding those states now since
- * nothing in today's task touches order status changes.
+ * Day 10: full order lifecycle. PLACED is the only state an order can be
+ * created in (see OrderServiceImpl.placeOrder); every other value is only
+ * ever reached through the admin status-update endpoint, and only via a
+ * transition allowed by OrderServiceImpl.VALID_TRANSITIONS.
  */
 public enum OrderStatus {
-    PLACED
+    PLACED,
+    PROCESSING,
+    SHIPPED,
+    DELIVERED,
+    CANCELLED
 }
