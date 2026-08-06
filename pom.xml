@@ -31,6 +31,24 @@
 		<jjwt.version>0.12.6</jjwt.version>
 	</properties>
 	<dependencies>
+
+		<dependency>
+			<groupId>com.fasterxml.jackson.core</groupId>
+			<artifactId>jackson-databind</artifactId>
+		</dependency>
+
+		<!-- NEW: explicit declaration for JavaTimeModule (LocalDateTime/
+		     LocalDate support in JSON). This was already present
+		     transitively via spring-boot-starter-web -> spring-boot-starter-json,
+		     but wasn't declared directly, so it wasn't reliably visible on
+		     the compile classpath / to the IDE's indexer. No version needed -
+		     spring-boot-starter-parent's dependency management (the BOM)
+		     pins it to the version matching the rest of your Jackson stack. -->
+		<dependency>
+			<groupId>com.fasterxml.jackson.datatype</groupId>
+			<artifactId>jackson-datatype-jsr310</artifactId>
+		</dependency>
+
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-starter-data-jpa</artifactId>
@@ -41,7 +59,8 @@
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webmvc</artifactId>
+			<!--			<artifactId>spring-boot-starter-webmvc</artifactId>-->
+			<artifactId>spring-boot-starter-web</artifactId>
 		</dependency>
 
 		<!-- NEW: today's task - Spring Security for authentication/authorization -->
@@ -86,19 +105,18 @@
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
+		<!-- FIXED: "spring-boot-starter-data-jpa-test" and
+		     "spring-boot-starter-validation-test" are not real Maven
+		     artifacts - Spring Boot does not publish "-test" variants of
+		     individual starters. spring-boot-starter-test below already
+		     pulls in everything needed for unit + slice testing: JUnit 5,
+		     Mockito, AssertJ, Hamcrest, JSONassert, and spring-test. The
+		     two fake dependencies would have failed dependency resolution
+		     at build time, before a single Day 12 test could compile. -->
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-data-jpa-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-validation-test</artifactId>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-webmvc-test</artifactId>
+			<!--			<artifactId>spring-boot-starter-webmvc-test</artifactId>-->
+			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<!-- NEW: needed to test security-filtered endpoints (MockMvc + Spring
