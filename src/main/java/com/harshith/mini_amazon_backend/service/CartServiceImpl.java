@@ -5,7 +5,9 @@ import com.harshith.mini_amazon_backend.entity.Cart;
 import com.harshith.mini_amazon_backend.entity.Product;
 import com.harshith.mini_amazon_backend.entity.User;
 import com.harshith.mini_amazon_backend.exception.CartItemNotFoundException;
+import com.harshith.mini_amazon_backend.exception.InsufficientStockException;
 import com.harshith.mini_amazon_backend.exception.ProductNotFoundException;
+import com.harshith.mini_amazon_backend.exception.ProductOutOfStockException;
 import com.harshith.mini_amazon_backend.repository.CartRepository;
 import com.harshith.mini_amazon_backend.repository.ProductRepository;
 import com.harshith.mini_amazon_backend.security.CurrentUserProvider;
@@ -56,8 +58,27 @@ public class CartServiceImpl implements CartService {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ProductNotFoundException(productId));
 
+        // NEW (Day 13): stock is checked here too, not just at order-placement
+        // time in OrderServiceImpl. Checking only at checkout would let a
+        // user fill their cart with an out-of-stock item and only find out
+        // it's unavailable when they try to pay - checking at add-to-cart
+        // time gives that feedback immediately instead.
+        if (product.getStock() == 0) {
+            throw new ProductOutOfStockException(product.getName());
+        }
+
         Cart cartItem = cartRepository.findByUserAndProductId(currentUser, productId)
                 .orElse(null);
+
+        // If the item is already in the cart, the quantity being validated
+        // against stock is the NEW total (existing + requested), not just
+        // the requested amount - otherwise two separate "add 1" calls could
+        // each pass individually while the cart ends up over stock overall.
+        int desiredQuantity = (cartItem == null) ? quantity : cartItem.getQuantity() + quantity;
+
+        if (desiredQuantity > product.getStock()) {
+            throw new InsufficientStockException(product.getName(), product.getStock(), desiredQuantity);
+        }
 
         if (cartItem == null) {
             cartItem = new Cart();
@@ -65,7 +86,7 @@ public class CartServiceImpl implements CartService {
             cartItem.setProduct(product);
             cartItem.setQuantity(quantity);
         } else {
-            cartItem.setQuantity(cartItem.getQuantity() + quantity);
+            cartItem.setQuantity(desiredQuantity);
         }
 
         return toDto(cartRepository.save(cartItem));
@@ -84,6 +105,16 @@ public class CartServiceImpl implements CartService {
         }
 
         Cart cartItem = getCartItemOrThrow(productId);
+
+        // NEW (Day 13): PUT lets the client set quantity to any explicit
+        // value, so it needs the same stock ceiling as addItem - otherwise
+        // a client could bypass the out-of-stock/insufficient-stock check
+        // above just by using update instead of add.
+        Product product = cartItem.getProduct();
+        if (quantity > product.getStock()) {
+            throw new InsufficientStockException(product.getName(), product.getStock(), quantity);
+        }
+
         cartItem.setQuantity(quantity);
         return toDto(cartRepository.save(cartItem));
     }

@@ -241,6 +241,35 @@ class OrderServiceTest {
                 .isInstanceOf(InvalidOrderStatusTransitionException.class);
     }
 
+    // NEW (Day 13): cancelling must give back the stock that placeOrder
+    // reserved - otherwise the product stays permanently under-counted
+    // even though nothing shipped.
+    @Test
+    void updateOrderStatus_cancelled_restoresStockToProduct() {
+        // product starts at 10, order reserved 3 of it (see buildOrderWithOneItem)
+        product.setStock(7);
+        Order order = buildOrderWithOneItem(1L, OrderStatus.PLACED);
+        when(orderRepository.findByIdWithItems(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        OrderResponseDto result = orderService.updateOrderStatus(1L, OrderStatus.CANCELLED);
+
+        assertThat(product.getStock()).isEqualTo(10);
+        assertThat(result.getStatus()).isEqualTo("CANCELLED");
+        verify(productRepository).save(product);
+    }
+
+    @Test
+    void updateOrderStatus_notCancelled_doesNotTouchStock() {
+        Order order = buildOrderWithOneItem(1L, OrderStatus.PLACED);
+        when(orderRepository.findByIdWithItems(1L)).thenReturn(Optional.of(order));
+        when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        orderService.updateOrderStatus(1L, OrderStatus.PROCESSING);
+
+        verify(productRepository, never()).save(any(Product.class));
+    }
+
     @Test
     void updateOrderStatus_orderNotFound_throwsOrderNotFoundException() {
         when(orderRepository.findByIdWithItems(99L)).thenReturn(Optional.empty());
@@ -270,4 +299,3 @@ class OrderServiceTest {
         return order;
     }
 }
-

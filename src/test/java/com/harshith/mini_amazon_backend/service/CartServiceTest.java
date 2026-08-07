@@ -6,7 +6,9 @@ import com.harshith.mini_amazon_backend.entity.Product;
 import com.harshith.mini_amazon_backend.entity.Role;
 import com.harshith.mini_amazon_backend.entity.User;
 import com.harshith.mini_amazon_backend.exception.CartItemNotFoundException;
+import com.harshith.mini_amazon_backend.exception.InsufficientStockException;
 import com.harshith.mini_amazon_backend.exception.ProductNotFoundException;
+import com.harshith.mini_amazon_backend.exception.ProductOutOfStockException;
 import com.harshith.mini_amazon_backend.repository.CartRepository;
 import com.harshith.mini_amazon_backend.repository.ProductRepository;
 import com.harshith.mini_amazon_backend.security.CurrentUserProvider;
@@ -140,6 +142,56 @@ class CartServiceTest {
         verify(productRepository, never()).findById(any());
     }
 
+    // NEW (Day 13): stock is checked at add-to-cart time, not just at
+    // checkout - see CartServiceImpl.addItem.
+    @Test
+    void addItem_productOutOfStock_throwsProductOutOfStockException() {
+        product.setStock(0);
+
+        when(currentUserProvider.getCurrentUser()).thenReturn(user);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+
+        assertThatThrownBy(() -> cartService.addItem(10L, 1))
+                .isInstanceOf(ProductOutOfStockException.class)
+                .hasMessageContaining("Wireless Mouse");
+
+        verify(cartRepository, never()).save(any(Cart.class));
+    }
+
+    @Test
+    void addItem_quantityExceedsStock_throwsInsufficientStockException() {
+        product.setStock(5);
+
+        when(currentUserProvider.getCurrentUser()).thenReturn(user);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(cartRepository.findByUserAndProductId(user, 10L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> cartService.addItem(10L, 6))
+                .isInstanceOf(InsufficientStockException.class);
+
+        verify(cartRepository, never()).save(any(Cart.class));
+    }
+
+    @Test
+    void addItem_existingCartQuantityPlusNewExceedsStock_throwsInsufficientStockException() {
+        product.setStock(5);
+        Cart existing = new Cart();
+        existing.setId(100L);
+        existing.setUser(user);
+        existing.setProduct(product);
+        existing.setQuantity(3);
+
+        when(currentUserProvider.getCurrentUser()).thenReturn(user);
+        when(productRepository.findById(10L)).thenReturn(Optional.of(product));
+        when(cartRepository.findByUserAndProductId(user, 10L)).thenReturn(Optional.of(existing));
+
+        // 3 already in cart + 3 more requested = 6, but only 5 in stock
+        assertThatThrownBy(() -> cartService.addItem(10L, 3))
+                .isInstanceOf(InsufficientStockException.class);
+
+        verify(cartRepository, never()).save(any(Cart.class));
+    }
+
     @Test
     void addItem_productNotFound_throwsProductNotFoundException() {
         when(currentUserProvider.getCurrentUser()).thenReturn(user);
@@ -176,6 +228,25 @@ class CartServiceTest {
                 .isInstanceOf(IllegalArgumentException.class);
 
         verify(cartRepository, never()).findByUserAndProductId(any(), any());
+    }
+
+    // NEW (Day 13): PUT must respect stock too, or it becomes a bypass for
+    // the check in addItem.
+    @Test
+    void updateQuantity_exceedsStock_throwsInsufficientStockException() {
+        Cart existing = new Cart();
+        existing.setId(100L);
+        existing.setUser(user);
+        existing.setProduct(product); // product.stock == 20 from setUp()
+        existing.setQuantity(2);
+
+        when(currentUserProvider.getCurrentUser()).thenReturn(user);
+        when(cartRepository.findByUserAndProductId(user, 10L)).thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> cartService.updateQuantity(10L, 25))
+                .isInstanceOf(InsufficientStockException.class);
+
+        verify(cartRepository, never()).save(any(Cart.class));
     }
 
     @Test

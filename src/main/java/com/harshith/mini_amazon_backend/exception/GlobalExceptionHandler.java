@@ -113,20 +113,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
-    // NEW (Day 8): GET /api/orders/{id} for an order that doesn't exist, or
-    // that exists but belongs to a different user - findByIdAndUser in
-    // OrderRepository makes those two cases indistinguishable to the
-    // caller on purpose, so no one can probe which order ids exist.
-    @ExceptionHandler(OrderNotFoundException.class)
-    public ResponseEntity<Map<String, Object>> handleOrderNotFound(OrderNotFoundException ex) {
+    // NEW (Day 13): thrown by CartServiceImpl.addItem when a product's
+    // stock is exactly 0. Same 409 reasoning as InsufficientStockException
+    // above - both represent a well-formed request that conflicts with
+    // current inventory state, not a malformed one, so they're handled
+    // identically and kept as separate exception types only so each can
+    // carry its own precise message.
+    @ExceptionHandler(ProductOutOfStockException.class)
+    public ResponseEntity<Map<String, Object>> handleProductOutOfStock(ProductOutOfStockException ex) {
         Map<String, Object> body = new HashMap<>();
         body.put("timestamp", LocalDateTime.now());
-        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("status", HttpStatus.CONFLICT.value());
         body.put("message", ex.getMessage());
-        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
-
-
 
     // NEW (Day 10): PATCH /api/orders/{id}/status requesting a transition
     // the order isn't allowed to make from its current state (e.g.
@@ -142,7 +142,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
-
+    // NEW (Day 8): GET /api/orders/{id} for an order that doesn't exist, or
+    // that exists but belongs to a different user - findByIdAndUser in
+    // OrderRepository makes those two cases indistinguishable to the
+    // caller on purpose, so no one can probe which order ids exist.
+    @ExceptionHandler(OrderNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleOrderNotFound(OrderNotFoundException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {
