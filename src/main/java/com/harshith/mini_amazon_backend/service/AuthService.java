@@ -45,7 +45,7 @@ public class AuthService {
         User savedUser = userRepository.save(user);
 
         String token = jwtService.generateToken(savedUser);
-        return new AuthenticationResponse(token, "Bearer", savedUser.getName(), savedUser.getEmail());
+        return new AuthenticationResponse(savedUser.getId(), token, "Bearer", savedUser.getName(), savedUser.getEmail());
     }
 
     public AuthenticationResponse login(LoginRequest request) {
@@ -62,6 +62,6 @@ public class AuthService {
                         "Authenticated user not found in database: " + request.getEmail()));
 
         String token = jwtService.generateToken(user);
-        return new AuthenticationResponse(token, "Bearer", user.getName(), user.getEmail());
+        return new AuthenticationResponse(user.getId(), token, "Bearer", user.getName(), user.getEmail());
     }
 }

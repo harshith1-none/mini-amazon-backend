@@ -20,6 +20,14 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class AuthenticationResponse {
 
+    // NEW (Day 15): the frontend needs to know its own user id to tell
+    // "my review" apart from "someone else's review" when rendering
+    // edit/delete controls on ProductDetail (ReviewResponseDto.userId is
+    // the field being compared against). Comparing by name/email instead
+    // would misidentify reviews whenever two accounts share a display
+    // name - id is the only value that's actually guaranteed unique.
+    private Long id;
+
     private String token;
     private String tokenType;
     private String name;
