@@ -1,18 +1,20 @@
 package com.harshith.mini_amazon_backend.service;
 
-import com.harshith.mini_amazon_backend.dto.CartResponseDto;
 import com.harshith.mini_amazon_backend.dto.ProductRequestDto;
 import com.harshith.mini_amazon_backend.dto.ProductResponseDto;
 import com.harshith.mini_amazon_backend.entity.Product;
 import com.harshith.mini_amazon_backend.exception.CategoryNotFoundException;
 import com.harshith.mini_amazon_backend.exception.ProductNotFoundException;
 import com.harshith.mini_amazon_backend.repository.ProductRepository;
+import com.harshith.mini_amazon_backend.repository.ReviewRepository;
 
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class ProductService {
@@ -23,8 +25,18 @@ public class ProductService {
 
     private final ProductRepository productRepository;
 
-    public ProductService(ProductRepository productRepository) {
+    // NEW (Day 14): needed to compute averageRating/reviewCount on every
+    // product response - see buildDto below.
+    private final ReviewRepository reviewRepository;
+
+    // BUG FIX (Day 14 review): this constructor previously also had an
+    // unused `import com.harshith.mini_amazon_backend.dto.CartResponseDto;`
+    // at the top of the file - a leftover import with nothing in this class
+    // ever referencing it. Removed as dead code/noise, same reasoning as
+    // WishlistController's unused ProductService dependency fix on Day 7.
+    public ProductService(ProductRepository productRepository, ReviewRepository reviewRepository) {
         this.productRepository = productRepository;
+        this.reviewRepository = reviewRepository;
     }
 
     public List<ProductResponseDto> getAllProducts(String sort) {
@@ -32,9 +44,7 @@ public class ProductService {
                 ? productRepository.findAll()
                 : productRepository.findAll(parseSort(sort));
 
-        return products.stream()
-                .map(this::toDto)
-                .toList();
+        return toDtoList(products);
     }
 
     public ProductResponseDto getProductById(Long id) {
@@ -44,7 +54,43 @@ public class ProductService {
         return toDto(product);
     }
 
+    // NEW (Day 14): one aggregate query for ALL products' rating summaries,
+    // instead of calling reviewRepository per product inside the mapping
+    // loop - looping a query per product is a classic N+1 (1 query to load
+    // the products + N more queries just for their ratings). A product with
+    // no reviews yet simply has no entry in the map, and getOrDefault below
+    // treats that the same as an explicit "0 reviews, 0.0 average".
+    private List<ProductResponseDto> toDtoList(List<Product> products) {
+        Map<Long, ReviewRepository.ProductRatingSummary> ratingSummaries =
+                reviewRepository.findRatingSummaryForAllProducts()
+                        .stream()
+                        .collect(Collectors.toMap(
+                                ReviewRepository.ProductRatingSummary::getProductId,
+                                summary -> summary));
+
+        return products.stream()
+                .map(product -> {
+                    ReviewRepository.ProductRatingSummary summary = ratingSummaries.get(product.getId());
+                    double averageRating = (summary == null || summary.getAverageRating() == null)
+                            ? 0.0 : summary.getAverageRating();
+                    long reviewCount = (summary == null || summary.getReviewCount() == null)
+                            ? 0L : summary.getReviewCount();
+                    return buildDto(product, averageRating, reviewCount);
+                })
+                .toList();
+    }
+
+    // Single-product path (getProductById, addProduct, updateProduct): one
+    // extra query pair per call is fine here since it's only ever one
+    // product, not a whole list - see ReviewRepository.findAverageRatingByProductId
+    // for why this uses a different query shape than the batch version above.
     private ProductResponseDto toDto(Product product) {
+        Double averageRating = reviewRepository.findAverageRatingByProductId(product.getId());
+        long reviewCount = reviewRepository.countByProductId(product.getId());
+        return buildDto(product, averageRating == null ? 0.0 : averageRating, reviewCount);
+    }
+
+    private ProductResponseDto buildDto(Product product, double averageRating, long reviewCount) {
         return new ProductResponseDto(
                 product.getId(),
                 product.getName(),
@@ -57,8 +103,18 @@ public class ProductService {
                 product.getImageUrl(),
                 product.isNewArrival(),
                 product.isOnSale(),
-                product.getDiscountPercent()
+                product.getDiscountPercent(),
+                roundToOneDecimal(averageRating),
+                reviewCount
         );
+    }
+
+    // Ratings like 4.333333 read poorly in a UI; rounding to one decimal
+    // (4.3) is the same idea as currency being stored/displayed to 2
+    // decimal places elsewhere in this project (see Product.cost's
+    // precision = 10, scale = 2).
+    private double roundToOneDecimal(double value) {
+        return Math.round(value * 10.0) / 10.0;
     }
 
     public ProductResponseDto addProduct(ProductRequestDto request) {
@@ -109,10 +165,7 @@ public class ProductService {
                         keyword,
                         keyword
                 );
-        return products
-                .stream()
-                .map(this::toDto)
-                .toList();
+        return toDtoList(products);
     }
 
     public List<ProductResponseDto> categoryFilter(String category) {
@@ -122,9 +175,7 @@ public class ProductService {
             throw new CategoryNotFoundException(category);
         }
 
-        return products.stream()
-                .map(this::toDto)
-                .toList();
+        return toDtoList(products);
     }
 
     private Sort parseSort(String sort) {

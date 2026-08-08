@@ -89,9 +89,7 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
     }
 
-    // NEW (Day 8): POST /api/orders when the user's cart has no items.
-    // 400 - the client sent a well-formed request, but it's not valid to
-    // act on given the current state (nothing to order).
+
     @ExceptionHandler(EmptyCartException.class)
     public ResponseEntity<Map<String, Object>> handleEmptyCart(EmptyCartException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -101,9 +99,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body);
     }
 
-    // NEW (Day 8): 409 - the requested quantity conflicts with current
-    // inventory. Same reasoning as DuplicateWishlistItemException: this is
-    // a conflict with server-side state, not a malformed request.
     @ExceptionHandler(InsufficientStockException.class)
     public ResponseEntity<Map<String, Object>> handleInsufficientStock(InsufficientStockException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -113,12 +108,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
-    // NEW (Day 13): thrown by CartServiceImpl.addItem when a product's
-    // stock is exactly 0. Same 409 reasoning as InsufficientStockException
-    // above - both represent a well-formed request that conflicts with
-    // current inventory state, not a malformed one, so they're handled
-    // identically and kept as separate exception types only so each can
-    // carry its own precise message.
     @ExceptionHandler(ProductOutOfStockException.class)
     public ResponseEntity<Map<String, Object>> handleProductOutOfStock(ProductOutOfStockException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -128,11 +117,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
-    // NEW (Day 10): PATCH /api/orders/{id}/status requesting a transition
-    // the order isn't allowed to make from its current state (e.g.
-    // DELIVERED -> PROCESSING). 409, same reasoning as
-    // InsufficientStockException - a well-formed request that conflicts
-    // with the resource's current state, not a malformed one.
     @ExceptionHandler(InvalidOrderStatusTransitionException.class)
     public ResponseEntity<Map<String, Object>> handleInvalidOrderStatusTransition(InvalidOrderStatusTransitionException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -142,10 +126,6 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
     }
 
-    // NEW (Day 8): GET /api/orders/{id} for an order that doesn't exist, or
-    // that exists but belongs to a different user - findByIdAndUser in
-    // OrderRepository makes those two cases indistinguishable to the
-    // caller on purpose, so no one can probe which order ids exist.
     @ExceptionHandler(OrderNotFoundException.class)
     public ResponseEntity<Map<String, Object>> handleOrderNotFound(OrderNotFoundException ex) {
         Map<String, Object> body = new HashMap<>();
@@ -153,6 +133,43 @@ public class GlobalExceptionHandler {
         body.put("status", HttpStatus.NOT_FOUND.value());
         body.put("message", ex.getMessage());
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    // NEW (Day 14): POST /api/products/{id}/reviews or GET on a review
+    // path/product id that doesn't exist.
+    @ExceptionHandler(ReviewNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> handleReviewNotFound(ReviewNotFoundException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.NOT_FOUND.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(body);
+    }
+
+    // NEW (Day 14): 409, same reasoning as DuplicateWishlistItemException -
+    // a well-formed request that conflicts with existing server-side state
+    // (this user already reviewed this product), not a malformed one.
+    @ExceptionHandler(DuplicateReviewException.class)
+    public ResponseEntity<Map<String, Object>> handleDuplicateReview(DuplicateReviewException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.CONFLICT.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+    }
+
+    // NEW (Day 14): 403 - authenticated, but trying to update/delete
+    // someone else's review. See ReviewAccessDeniedException's javadoc for
+    // why this is separate from CustomAccessDeniedHandler (that one is
+    // Spring Security's role-based 403; this is an application-level
+    // ownership 403).
+    @ExceptionHandler(ReviewAccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleReviewAccessDenied(ReviewAccessDeniedException ex) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        body.put("message", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

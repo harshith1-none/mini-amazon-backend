@@ -66,11 +66,6 @@ public class SecurityConfig {
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-                // NEW: without this, Spring Security falls back to
-                // Http403ForbiddenEntryPoint for every unauthenticated
-                // request - see JwtAuthenticationEntryPoint's javadoc for
-                // the full explanation. This is what makes a missing/
-                // invalid/expired JWT return 401 instead of 403.
                 .exceptionHandling(exceptionHandling -> exceptionHandling
                         .authenticationEntryPoint(jwtAuthenticationEntryPoint)
                         .accessDeniedHandler(customAccessDeniedHandler)
@@ -80,24 +75,25 @@ public class SecurityConfig {
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/products/**").permitAll()
 
-                        // FIXED (full review): POST/PUT/DELETE on /api/products
-                        // were previously uncovered by any specific rule, so
-                        // they fell through to .anyRequest().authenticated() -
-                        // meaning any logged-in customer, not just an admin,
-                        // could create, edit, or delete products. Declared
-                        // before .anyRequest() for the same ordering reason
-                        // as the PATCH rule below: Spring Security matches
-                        // top-to-bottom and stops at the first hit.
+                        // NEW (Day 14): reviews are user-generated content,
+                        // not product-catalog management - posting one must
+                        // only require being logged in, not being an ADMIN.
+                        // This MUST be declared before the ADMIN-only POST
+                        // /api/products/** rule right below: both patterns
+                        // match POST /api/products/{id}/reviews, and Spring
+                        // Security stops at the first matching rule. Without
+                        // this line first, every non-admin user would get a
+                        // 403 trying to post a review - the ADMIN rule below
+                        // would win by being declared (and therefore
+                        // evaluated) first.
+                        .requestMatchers(HttpMethod.POST, "/api/products/*/reviews").authenticated()
+
+
                         .requestMatchers(HttpMethod.POST, "/api/products/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/products/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/products/**").hasRole("ADMIN")
 
-                        // NEW (Day 10): admin-only order status changes.
-                        // Must be declared before .anyRequest().authenticated()
-                        // - Spring Security evaluates these rules in order
-                        // and stops at the first match, so a more specific
-                        // rule always has to come before a more general one
-                        // that would otherwise shadow it.
+
                         .requestMatchers(HttpMethod.PATCH, "/api/orders/*/status").hasRole("ADMIN")
 
 

@@ -6,6 +6,7 @@ import com.harshith.mini_amazon_backend.entity.Product;
 import com.harshith.mini_amazon_backend.exception.CategoryNotFoundException;
 import com.harshith.mini_amazon_backend.exception.ProductNotFoundException;
 import com.harshith.mini_amazon_backend.repository.ProductRepository;
+import com.harshith.mini_amazon_backend.repository.ReviewRepository;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -34,6 +36,14 @@ class ProductServiceTest {
 
     @Mock
     private ProductRepository productRepository;
+
+    // NEW (Day 14): ProductService's constructor now also takes a
+    // ReviewRepository (to compute averageRating/reviewCount) - without
+    // mocking it here, @InjectMocks would pass null for it, and every test
+    // below would NPE the moment ProductService tries to call
+    // reviewRepository.findAverageRatingByProductId(...) etc.
+    @Mock
+    private ReviewRepository reviewRepository;
 
     @InjectMocks
     private ProductService productService;
@@ -55,6 +65,17 @@ class ProductServiceTest {
         product.setNewArrival(true);
         product.setOnSale(false);
         product.setDiscountPercent(0);
+
+        // Default "no reviews yet" stubs for every test in this class.
+        // Using lenient() rather than when(...) directly: MockitoExtension
+        // runs in strict-stubbing mode and fails a test if a stub declared
+        // in setUp() is never actually used by that particular test (e.g.
+        // deleteProduct_notFound never reaches the rating-lookup code at
+        // all) - lenient() opts these specific stubs out of that check
+        // instead of duplicating them into every single test method.
+        lenient().when(reviewRepository.findRatingSummaryForAllProducts()).thenReturn(List.of());
+        lenient().when(reviewRepository.findAverageRatingByProductId(anyLong())).thenReturn(null);
+        lenient().when(reviewRepository.countByProductId(anyLong())).thenReturn(0L);
     }
 
     // ---------- getAllProducts ----------
